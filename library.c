@@ -6,22 +6,17 @@
 #include <unistring/stdint.h>
 
 int hook(JNIEnv *env) {
-    jclass JarInjector = (*env)->DefineClass(env, NULL, NULL, (jbyte *)JarInjectorBytes, JarInjectorSize);
+    jclass JarInjector = (*env)->DefineClass(env, NULL, NULL, (jbyte *) JarInjectorBytes, sizeof(JarInjectorBytes));
     jmethodID hook = (*env)->GetMethodID(env, JarInjector, "hook", "()Z");
-    return (uint8_t)(*env)->CallStaticBooleanMethod(env, JarInjector, hook);
+    return (uint8_t) (*env)->CallStaticBooleanMethod(env, JarInjector, hook);
 }
 
 __attribute__((constructor))
 void attach(void) {
-    void *jvmDLL = dlopen("libjvm.so", RTLD_LAZY);
-
-    typedef jint (JNICALL *GetCreatedJavaVMs_t)(JavaVM **, jsize, jsize *);
-    GetCreatedJavaVMs_t GetCreatedJavaVMs = dlsym(jvmDLL, "JNI_GetCreatedJavaVMs");
-
     jsize nVMs;
-    GetCreatedJavaVMs(NULL, 0, &nVMs);
+    JNI_GetCreatedJavaVMs(NULL, 0, &nVMs);
     JavaVM *buffer = malloc(nVMs * sizeof(JavaVM));
-    GetCreatedJavaVMs(&buffer, nVMs, &nVMs);
+    JNI_GetCreatedJavaVMs(&buffer, nVMs, &nVMs);
 
     int ret = -1;
     for (jsize index = 0; index < nVMs; index++) {
@@ -38,6 +33,5 @@ void attach(void) {
         if (ret != -1) break;
     }
 
-    dlclose(jvmDLL);
     end: return;
 }

@@ -3,6 +3,7 @@ import java.lang.Thread;
 import java.lang.Exception;
 import java.lang.ClassLoader;
 
+import java.net.URL;
 import java.net.URLClassLoader;
 
 import java.util.Map;
@@ -19,20 +20,21 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 public class JarInjector extends URLClassLoader {
     public static JarInjector INSTANCE;
 
-    public static boolean hook() {
+    public static int hook() {
         ClassLoader cl = queryUserForCL();
 
         if (cl != null) {
             INSTANCE = new JarInjector(cl);
-            return !Arrays.stream(queryUserForJars()).map(JarInjector::loadJar).anyMatch(b -> !b);
+            return Arrays.stream(queryUserForJars()).map(JarInjector::loadJar).anyMatch(b -> !b) ? 1 : 0;
         }
 
-        return false;
+        return -1;
     }
 
     private static Map<String, ClassLoader> getCLMap() {
         return Thread.getAllStackTraces().keySet().stream()
-            .map(thread -> thread.getContextClassLoader()).distinct()
+            .map(thread -> thread.getContextClassLoader())
+            .filter(cl -> cl != null).distinct().sorted()
             .collect(Collectors.toMap(cl -> cl.getClass().getName(), cl -> cl));
     }
 
@@ -59,7 +61,9 @@ public class JarInjector extends URLClassLoader {
     private static String queryUserForMainClass(File jar) throws Exception {
         String[] classes = new JarFile(jar).stream()
             .map(entry -> entry.getName())
-            .filter(name -> name.endsWith(".class")).toArray(String[]::new);
+            .filter(name -> !name.startsWith("META-INF/") && name.endsWith(".class"))
+            .map(name -> name.substring(0, name.length() - 6).replace("/", "."))
+            .sorted().toArray(String[]::new);
 
         return queryUserCommon("Choose The Main class", classes);
     }
@@ -71,11 +75,11 @@ public class JarInjector extends URLClassLoader {
             Class Main = INSTANCE.loadClass(queryUserForMainClass(jar), true);
             ret = true;
             Main.newInstance();
-        } catch (Exception e) {}
+        } catch (Exception e) { }
         return ret;
     }
 
     private JarInjector(ClassLoader parent) {
-        super(null, parent);
+        super(new URL[0], parent);
     }
 }
